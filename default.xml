@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+
+  <!-- 远程仓库 -->
+  <remote name="origin" fetch="https://github.com/active-ailab/" />
+
+  <!-- 默认配置 -->
+  <default revision="main"
+           remote="origin"
+           sync-j="4"
+           clone-depth="1" />
+
+  <!-- skills 仓库 -->
+  <project name="lark-mcp-auth"
+           path="lark-mcp-auth" />
+
+  <project name="code-review"
+           path="code-review" />
+
+</manifest>
