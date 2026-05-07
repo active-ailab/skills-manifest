@@ -5,14 +5,33 @@
   <remote name="origin" fetch="https://github.com/active-ailab/" />
 
   <!-- 默认配置 -->
-  <default revision="main"
-           remote="origin"
+  <default remote="origin"
+           revision="main"
            sync-j="4"
            clone-depth="1" />
 
+  <!-- manifest 仓库 -->
+  <project name="skills-manifest"
+           path="manifest" />
+
   <!-- skills 仓库 -->
-  <project name="lark-mcp-auth"
-           path="lark-mcp-auth" />
+  <project name="active-coding-rules"
+           path="active-coding-rules" />
+
+  <project name="active-knowledge-suite"
+           path="active-knowledge-suite" />
+
+  <project name="active-jira-workflow"
+           path="active-jira-workflow" />
+
+  <project name="commit-message-standards"
+           path="commit-message-standards" />
+
+  <project name="ui-screen-generator-skill"
+           path="ui-screen-generator-skill" />
+
+  <project name="lark_mcp_auth_skills"
+           path="lark_mcp_auth_skills" />
 
   <project name="code-review"
            path="code-review" />
