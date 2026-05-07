@@ -2,7 +2,7 @@
 <manifest>
 
   <!-- 远程仓库 -->
-  <remote name="origin" fetch="https://github.com/active-ailab/" />
+  <remote name="origin" fetch="ssh://git@github.com/active-ailab/" />
 
   <!-- 默认配置 -->
   <default remote="origin"
