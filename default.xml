@@ -33,6 +33,9 @@
   <project name="lark_mcp_auth_skills"
            path="lark_mcp_auth_skills" />
 
+   <project name="mhs003_build_script"
+           path="mhs003_build_script" /> 
+
   <project name="code-review"
            path="code-review" />
 
