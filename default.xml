@@ -38,5 +38,8 @@
 
   <project name="code-review"
            path="code-review" />
+		   
+  <project name="active_skills_install"
+           path="active_skills_install" />
 
 </manifest>
