@@ -45,4 +45,14 @@
   <project name="active-project-pl-skills"
            path="active-project-pl-skills" />
 
+  <project name="active-gerrit-workflow"
+           path="active-gerrit-workflow" />
+
+  <project name="Trace32_CLI"
+           path="Trace32_CLI" />
+
+  <project name="wsl-serial-monitor"
+           path="wsl-serial-monitor"
+           revision="master" />
+
 </manifest>
