@@ -42,4 +42,7 @@
   <project name="active_skills_install"
            path="active_skills_install" />
 
+  <project name="project-pl-skill"
+           path="project-pl-skill" />
+
 </manifest>
