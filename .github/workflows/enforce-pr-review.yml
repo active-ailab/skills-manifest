@@ -1,0 +1,119 @@
+# GitHub Actions: 强制PR Review机制
+# 即使没有分支保护规则，也能实现review流程
+
+name: Enforce PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  enforce-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检查是否为直接push到main
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            // 如果PR目标是main分支
+            if (pr.base.ref === 'main') {
+              // 添加需要review的标签
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['needs-review', 'do-not-merge']
+              });
+              
+              // 创建review提醒
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `## ⚠️ 需要管理员Review\n\n这个PR需要管理员review和批准后才能合并。\n\n**请勿直接合并！**\n\n@Samuel-RSD 请review此PR。`
+              });
+              
+              console.log(`PR #${pr.number} 需要review`);
+            }
+
+      - name: 阻止未review的PR合并
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            // 检查是否有approved review
+            const reviews = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+            
+            const approved = reviews.data.some(review => 
+              review.state === 'approved'
+            );
+            
+            if (!approved && pr.base.ref === 'main') {
+              // 设置PR为draft，阻止合并
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                draft: true
+              });
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `## 🚫 未通过Review\n\n此PR尚未通过管理员review，已设置为Draft状态。\n\n请等待 @Samuel-RSD review后再标记为Ready for review。`
+              });
+              
+              console.log(`PR #${pr.number} 未通过review，已设置为draft`);
+            }
+
+      - name: Review通过后允许合并
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            // 检查review状态
+            const reviews = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+            
+            const approved = reviews.data.some(review => 
+              review.state === 'approved'
+            );
+            
+            if (approved && pr.draft) {
+              // 标记为ready for review
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                draft: false
+              });
+              
+              // 移除do-not-merge标签
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                name: 'do-not-merge'
+              });
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `## ✅ Review通过\n\n此PR已通过管理员review，现在可以合并。`
+              });
+              
+              console.log(`PR #${pr.number} 已通过review，可以合并`);
+            }

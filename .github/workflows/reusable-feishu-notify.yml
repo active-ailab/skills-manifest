@@ -1,0 +1,111 @@
+name: Reusable Feishu Notify (MoxHermes)
+
+on:
+  workflow_call:
+    inputs:
+      repo_name:
+        required: true
+        type: string
+      repo_url:
+        required: true
+        type: string
+      actor:
+        required: true
+        type: string
+      branch:
+        required: true
+        type: string
+      event_name:
+        required: false
+        type: string
+        default: push
+      commit_msg:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      FEISHU_APP_ID:
+        required: true
+      FEISHU_APP_SECRET:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification to Feishu group via Bot API
+        env:
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          REPO_NAME: ${{ inputs.repo_name }}
+          REPO_URL: ${{ inputs.repo_url }}
+          ACTOR: ${{ inputs.actor }}
+          BRANCH: ${{ inputs.branch }}
+          EVENT_NAME: ${{ inputs.event_name }}
+          COMMIT_MSG: ${{ inputs.commit_msg }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time
+          from urllib.request import Request, urlopen
+          from datetime import datetime
+
+          APP_ID = os.environ["FEISHU_APP_ID"]
+          APP_SECRET = os.environ["FEISHU_APP_SECRET"]
+          GROUP_CHAT_ID = "oc_758bd8428500714ed58aabc5258cd34c"
+
+          def api_post(url, data, token=None):
+              headers = {"Content-Type": "application/json"}
+              if token:
+                  headers["Authorization"] = f"Bearer {token}"
+              req = Request(url, json.dumps(data).encode(), headers)
+              with urlopen(req, timeout=15) as resp:
+                  return json.loads(resp.read())
+
+          # 1. Get tenant_access_token
+          token_resp = api_post(
+              "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+              {"app_id": APP_ID, "app_secret": APP_SECRET}
+          )
+          token = token_resp["tenant_access_token"]
+
+          # 2. Build card
+          now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+          repo = os.environ["REPO_NAME"]
+          url = os.environ["REPO_URL"]
+          actor = os.environ["ACTOR"]
+          branch = os.environ["BRANCH"]
+          msg = os.environ.get("COMMIT_MSG", "").strip()
+          if not msg:
+              msg = f"{os.environ.get('EVENT_NAME', 'push')} triggered by {actor}"
+
+          card = {
+              "config": {"wide_screen_mode": True},
+              "header": {
+                  "title": {"tag": "plain_text", "content": f"📦 {repo} 更新通知"},
+                  "template": "blue"
+              },
+              "elements": [
+                  {"tag": "div", "text": {"tag": "lark_md",
+                      "content": (
+                          f"**仓库：** [{repo}]({url})\n"
+                          f"**分支：** `{branch}`\n"
+                          f"**操作人：** {actor}\n"
+                          f"**时间：** {now}\n\n"
+                          f"**提交信息：**\n{msg}"
+                      )}}
+              ]
+          }
+
+          # 3. Send to group
+          result = api_post(
+              "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
+              {"receive_id": GROUP_CHAT_ID, "msg_type": "interactive",
+               "content": json.dumps(card, ensure_ascii=False)},
+              token
+          )
+          if result.get("code") == 0:
+              print("✅ 通知发送成功")
+          else:
+              print(f"❌ 发送失败: {result}")
+              exit(1)
+          PY
