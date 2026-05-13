@@ -1,0 +1,144 @@
+name: Reusable Direct Push Guard (MoxHermes)
+
+on:
+  workflow_call:
+    secrets:
+      FEISHU_APP_ID:
+        required: true
+      FEISHU_APP_SECRET:
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Revert direct push and open PR
+        uses: actions/github-script@v7
+        env:
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { execFileSync } = require('node:child_process');
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = context.ref.replace('refs/heads/', '');
+            const headSha = context.sha;
+            const beforeSha = context.payload.before;
+            const actor = context.actor;
+
+            if (!['main', 'master'].includes(branch)) {
+              core.info(`Branch ${branch} is not guarded.`);
+              return;
+            }
+            if (actor === 'github-actions[bot]') {
+              core.info('Skip bot push to avoid loops.');
+              return;
+            }
+            if (!beforeSha || /^0+$/.test(beforeSha)) {
+              core.info('Branch creation push; skip guard.');
+              return;
+            }
+
+            const assoc = await github.request('GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls', {
+              owner,
+              repo,
+              commit_sha: headSha,
+              mediaType: { previews: ['groot'] },
+            });
+            const mergedPr = assoc.data.find((item) => item.merged_at);
+            if (mergedPr) {
+              core.info(`Commit is associated with merged PR #${mergedPr.number}; allow.`);
+              return;
+            }
+
+            const shortSha = headSha.slice(0, 7);
+            const safeActor = actor.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+            const reviewBranch = `review/${safeActor || 'unknown'}-${shortSha}`;
+            const repoUrl = context.payload.repository.html_url;
+            const compareUrl = `${repoUrl}/compare/${beforeSha}...${headSha}`;
+
+            execFileSync('git', ['config', 'user.name', 'github-actions[bot]'], { stdio: 'inherit' });
+            execFileSync('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], { stdio: 'inherit' });
+            execFileSync('git', ['checkout', branch], { stdio: 'inherit' });
+            execFileSync('git', ['branch', reviewBranch, headSha], { stdio: 'inherit' });
+            execFileSync('git', ['push', 'origin', `${reviewBranch}:${reviewBranch}`], { stdio: 'inherit' });
+
+            try {
+              execFileSync('git', ['revert', '--no-edit', '--no-commit', `${beforeSha}..${headSha}`], { stdio: 'inherit' });
+            } catch (error) {
+              core.warning(`Range revert failed, fallback to single-head revert: ${error.message}`);
+              execFileSync('git', ['reset', '--hard', headSha], { stdio: 'inherit' });
+              execFileSync('git', ['revert', '--no-edit', headSha], { stdio: 'inherit' });
+            }
+            try {
+              execFileSync('git', ['commit', '-m', `revert: undo direct push to ${branch} pending review`], { stdio: 'inherit' });
+            } catch (error) {
+              core.warning(`Commit may already exist or nothing to commit: ${error.message}`);
+            }
+            execFileSync('git', ['push', 'origin', `HEAD:${branch}`], { stdio: 'inherit' });
+
+            const bodyLines = [
+              '## Direct push intercepted by Hermes policy',
+              '',
+              `- 原提交人：@${actor}`,
+              `- 目标分支：\`${branch}\``,
+              `- 原始提交：\`${shortSha}\``,
+              `- 对比链接：${compareUrl}`,
+              '',
+              '该提交已从主分支自动回滚，需通过指定管理员双人审批后再自动合入。',
+            ];
+            const pr = await github.rest.pulls.create({
+              owner,
+              repo,
+              head: reviewBranch,
+              base: branch,
+              title: `[review-required] ${actor} direct push to ${branch}`,
+              body: bodyLines.join('\n'),
+            });
+
+            const appId = process.env.FEISHU_APP_ID;
+            const appSecret = process.env.FEISHU_APP_SECRET;
+            if (appId && appSecret) {
+              const py = [
+                'import json, os, urllib.request',
+                "APP_ID=os.environ['FEISHU_APP_ID']",
+                "APP_SECRET=os.environ['FEISHU_APP_SECRET']",
+                "GROUP_CHAT_ID='oc_758bd8428500714ed58aabc5258cd34c'",
+                'def post(url, data, token=None):',
+                "    headers={'Content-Type':'application/json; charset=utf-8'}",
+                "    if token: headers['Authorization']=f'Bearer {token}'",
+                "    req=urllib.request.Request(url, data=json.dumps(data, ensure_ascii=False).encode('utf-8'), headers=headers)",
+                "    with urllib.request.urlopen(req, timeout=20) as resp: return json.loads(resp.read().decode('utf-8'))",
+                "token=post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {'app_id': APP_ID, 'app_secret': APP_SECRET})['tenant_access_token']",
+                "card={'config': {'wide_screen_mode': True}, 'header': {'title': {'tag': 'plain_text', 'content': '🚫 直推主分支已自动拦截'}, 'template': 'red'}, 'elements': [{'tag':'div','text':{'tag':'lark_md','content': os.environ['CARD_MD']}}, {'tag':'action','actions':[{'tag':'button','text':{'tag':'plain_text','content':'查看自动生成的 PR'},'type':'primary','url':os.environ['PR_URL']}] } ] }",
+                "resp=post('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id', {'receive_id': GROUP_CHAT_ID, 'msg_type': 'interactive', 'content': json.dumps(card, ensure_ascii=False)}, token)",
+                "print(json.dumps(resp, ensure_ascii=False))",
+              ].join('\n');
+              execFileSync('python3', ['-c', py], {
+                env: {
+                  ...process.env,
+                  PR_URL: pr.data.html_url,
+                  CARD_MD: [
+                    `**仓库：** [${owner}/${repo}](${repoUrl})`,
+                    `**提交人：** ${actor}`,
+                    `**分支：** \`${branch}\``,
+                    `**原始提交：** \`${shortSha}\``,
+                    `**处理结果：** 已自动回滚主分支，并创建待审批 PR #${pr.data.number}`,
+                  ].join('\n'),
+                },
+                stdio: 'inherit',
+              });
+            }

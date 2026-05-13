@@ -1,0 +1,250 @@
+name: Reusable PR Review Gate (MoxHermes)
+
+on:
+  workflow_call:
+    inputs:
+      merge_method:
+        required: false
+        type: string
+        default: merge
+    secrets:
+      FEISHU_APP_ID:
+        required: true
+      FEISHU_APP_SECRET:
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  review-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign reviewers, notify, and merge when ready
+        uses: actions/github-script@v7
+        env:
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          MERGE_METHOD: ${{ inputs.merge_method }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const crypto = require('node:crypto');
+
+            const payload = context.payload;
+            const pr = payload.pull_request || payload.review?.pull_request;
+            if (!pr) {
+              core.info('No pull request in event payload; skipping.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = pr.number;
+            const actor = pr.user.login;
+            const baseRef = pr.base.ref;
+            const headSha = pr.head.sha;
+            const branch = pr.head.ref;
+            const repoUrl = pr.base.repo.html_url;
+            const prUrl = pr.html_url;
+            const action = payload.action || context.eventName;
+            const mergeMethod = (process.env.MERGE_METHOD || 'merge').toLowerCase();
+            const admins = ['Mox-Samuel', 'ZeppGAN', 'zepp-chen', 'Zepp-Hanzj'];
+            const marker = '<!-- hermes-review-assignment';
+
+            if (!['main', 'master'].includes(baseRef)) {
+              core.info(`Base branch ${baseRef} is not target branch; skipping.`);
+              return;
+            }
+
+            function pickTwo(seedText) {
+              let candidates = admins.filter((login) => login !== actor);
+              if (candidates.length < 2) candidates = [...admins];
+              const scored = candidates.map((login) => ({
+                login,
+                score: crypto.createHash('sha256').update(`${seedText}:${login}`).digest('hex'),
+              })).sort((a, b) => a.score.localeCompare(b.score));
+              return scored.slice(0, 2).map((item) => item.login);
+            }
+
+            function assignmentBody(reviewers) {
+              const state = JSON.stringify({ reviewers, sha: headSha });
+              const summary = [
+                `${marker} ${state} -->`,
+                '## 🔎 Hermes Review Gate',
+                `- 随机指定管理员：${reviewers.map((r) => `@${r}`).join('、')}`,
+                `- 目标分支：\`${baseRef}\``,
+                `- 当前提交：\`${headSha.slice(0, 7)}\``,
+                '- 策略：两位指定管理员均需在当前提交上批准，随后自动合入。',
+              ];
+              return summary.join('\n');
+            }
+
+            async function upsertAssignmentComment(reviewers) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100,
+              });
+              const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+              const body = assignmentBody(reviewers);
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+              }
+            }
+
+            async function currentAssignment() {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100,
+              });
+              const existing = [...comments].reverse().find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+              if (!existing) return null;
+              const matched = existing.body.match(/<!-- hermes-review-assignment\s+(\{.*?\})\s+-->/s);
+              if (!matched) return null;
+              try {
+                return JSON.parse(matched[1]);
+              } catch {
+                return null;
+              }
+            }
+
+            async function requestReviewers(reviewers) {
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner, repo, pull_number: prNumber, reviewers,
+                });
+              } catch (error) {
+                core.warning(`requestReviewers failed: ${error.message}`);
+              }
+            }
+
+            function notifyFeishu(title, template, lines, buttonText, buttonUrl) {
+              const appId = process.env.FEISHU_APP_ID;
+              const appSecret = process.env.FEISHU_APP_SECRET;
+              if (!appId || !appSecret) {
+                core.warning('Missing FEISHU_APP_ID/FEISHU_APP_SECRET; skip Feishu notify.');
+                return;
+              }
+              const py = [
+                'import json, os, urllib.request',
+                'from datetime import datetime',
+                "APP_ID=os.environ['FEISHU_APP_ID']",
+                "APP_SECRET=os.environ['FEISHU_APP_SECRET']",
+                "TITLE=os.environ['TITLE']",
+                "TEMPLATE=os.environ['TEMPLATE']",
+                "LINES=json.loads(os.environ['LINES'])",
+                "BUTTON_TEXT=os.environ['BUTTON_TEXT']",
+                "BUTTON_URL=os.environ['BUTTON_URL']",
+                "GROUP_CHAT_ID='oc_758bd8428500714ed58aabc5258cd34c'",
+                'def api_post(url, data, token=None):',
+                "    headers={'Content-Type':'application/json; charset=utf-8'}",
+                "    if token: headers['Authorization']=f'Bearer {token}'",
+                "    req=urllib.request.Request(url, data=json.dumps(data, ensure_ascii=False).encode('utf-8'), headers=headers)",
+                "    with urllib.request.urlopen(req, timeout=20) as resp: return json.loads(resp.read().decode('utf-8'))",
+                "token_resp=api_post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {'app_id': APP_ID, 'app_secret': APP_SECRET})",
+                "if token_resp.get('code') != 0: raise SystemExit(json.dumps(token_resp, ensure_ascii=False))",
+                "token=token_resp['tenant_access_token']",
+                "content='\\n'.join(LINES)",
+                "card={'config': {'wide_screen_mode': True}, 'header': {'title': {'tag': 'plain_text', 'content': TITLE}, 'template': TEMPLATE}, 'elements': [{'tag': 'div', 'text': {'tag': 'lark_md', 'content': content}}, {'tag': 'action', 'actions': [{'tag': 'button', 'text': {'tag': 'plain_text', 'content': BUTTON_TEXT}, 'type': 'primary', 'url': BUTTON_URL}]}, {'tag': 'note', 'elements': [{'tag': 'plain_text', 'content': f'通知时间: {datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")}'}]}]}",
+                "msg=api_post('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id', {'receive_id': GROUP_CHAT_ID, 'msg_type': 'interactive', 'content': json.dumps(card, ensure_ascii=False)}, token)",
+                "if msg.get('code') != 0: raise SystemExit(json.dumps(msg, ensure_ascii=False))",
+                "print('ok')",
+              ].join('\n');
+              execFileSync('python3', ['-c', py], {
+                env: {
+                  ...process.env,
+                  TITLE: title,
+                  TEMPLATE: template,
+                  LINES: JSON.stringify(lines),
+                  BUTTON_TEXT: buttonText,
+                  BUTTON_URL: buttonUrl,
+                },
+                stdio: 'inherit',
+              });
+            }
+
+            if (['opened', 'reopened', 'synchronize', 'ready_for_review'].includes(action)) {
+              const reviewers = pickTwo(`${repo}#${prNumber}:${headSha}`);
+              await upsertAssignmentComment(reviewers);
+              await requestReviewers(reviewers);
+              notifyFeishu(
+                action === 'synchronize' ? '🔄 收到新提交，等待复审' : '🧑‍⚖️ 新 PR 待审批',
+                action === 'synchronize' ? 'orange' : 'blue',
+                [
+                  `**仓库：** [${owner}/${repo}](${repoUrl})`,
+                  `**PR：** [#${prNumber} ${pr.title}](${prUrl})`,
+                  `**作者：** ${actor}`,
+                  `**分支：** \`${branch}\` → \`${baseRef}\``,
+                  `**指定管理员：** ${reviewers.map((r) => `\`${r}\``).join('、')}`,
+                  `**当前提交：** \`${headSha.slice(0, 7)}\``,
+                ],
+                '查看 PR',
+                prUrl,
+              );
+            }
+
+            if (pr.state !== 'open' || pr.draft) {
+              core.info(`PR state=${pr.state} draft=${pr.draft}; stop merge check.`);
+              return;
+            }
+
+            const assignment = await currentAssignment();
+            if (!assignment?.reviewers || assignment.reviewers.length < 2) {
+              core.info('No reviewer assignment found yet.');
+              return;
+            }
+
+            const reviewsResp = await github.rest.pulls.listReviews({ owner, repo, pull_number: prNumber, per_page: 100 });
+            const reviewStates = new Map();
+            for (const review of reviewsResp.data) {
+              const login = review.user?.login;
+              if (!login || !assignment.reviewers.includes(login)) continue;
+              const submittedAt = review.submitted_at ? Date.parse(review.submitted_at) : 0;
+              const prev = reviewStates.get(login) || { approvedAt: 0, approvedSha: null, blockedAt: 0 };
+              if (review.state === 'APPROVED' && submittedAt >= prev.approvedAt) {
+                prev.approvedAt = submittedAt;
+                prev.approvedSha = review.commit_id || null;
+              }
+              if ((review.state === 'CHANGES_REQUESTED' || review.state === 'DISMISSED') && submittedAt >= prev.blockedAt) {
+                prev.blockedAt = submittedAt;
+              }
+              reviewStates.set(login, prev);
+            }
+
+            const approvalsReady = assignment.reviewers.every((login) => {
+              const state = reviewStates.get(login);
+              return state && state.approvedSha === headSha && state.approvedAt > state.blockedAt;
+            });
+            if (!approvalsReady) {
+              core.info('Assigned reviewers have not both approved the current head SHA yet.');
+              return;
+            }
+
+            const checks = await github.rest.checks.listForRef({ owner, repo, ref: headSha, per_page: 100 });
+            const blockingChecks = checks.data.check_runs.filter((run) => run.name !== context.workflow);
+            const badChecks = blockingChecks.filter((run) => !(run.status === 'completed' && ['success', 'neutral', 'skipped'].includes(run.conclusion || '')));
+            if (badChecks.length > 0) {
+              core.info(`Checks not ready: ${badChecks.map((r) => `${r.name}:${r.status}/${r.conclusion}`).join(', ')}`);
+              return;
+            }
+
+            const refreshed = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+            if (refreshed.data.merged || refreshed.data.state !== 'open') {
+              core.info('PR already merged or closed.');
+              return;
+            }
+
+            try {
+              await github.rest.pulls.merge({ owner, repo, pull_number: prNumber, merge_method: mergeMethod });
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: `## ✅ Hermes Auto Merge\n两位指定管理员已对当前提交 \`${headSha.slice(0, 7)}\` 完成批准，PR 已自动合入。`,
+              });
+            } catch (error) {
+              core.setFailed(`Auto merge failed: ${error.message}`);
+            }
