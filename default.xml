@@ -55,7 +55,5 @@
            path="wsl-serial-monitor"
            revision="master" />
 
-  <project name="test-repo-7"
-           path="test-repo-7" />
 
 </manifest>
