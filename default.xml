@@ -56,7 +56,4 @@
            revision="master" />
 
 
-  <project name="device-skills"
-           path="device-skills" />
-
 </manifest>
