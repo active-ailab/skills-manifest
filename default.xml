@@ -24,6 +24,9 @@
   <project name="active-jira-workflow"
            path="active-jira-workflow" />
 
+  <project name="active-jira-project-status-preview"
+           path="active-jira-project-status-preview" />
+
   <project name="commit-message-standards"
            path="commit-message-standards" />
 
