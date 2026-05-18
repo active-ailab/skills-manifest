@@ -63,4 +63,7 @@
 
   <project name="active-lthr-workflow"
            path="active-lthr-workflow" />
+  <project name="elf_fetch"
+           path="elf_fetch" />
+
 </manifest>
