@@ -58,5 +58,9 @@
            path="wsl-serial-monitor"
            revision="master" />
 
+  <project name="device-skills"
+           path="device-skills" />
 
+  <project name="active-lthr-workflow"
+           path="active-lthr-workflow" />
 </manifest>
