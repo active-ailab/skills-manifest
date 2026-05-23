@@ -66,8 +66,6 @@
   <project name="elf_fetch"
            path="elf_fetch" />
 
-  <project name="test-repo"
-           path="test-repo" />
 
   <project name="sport-record-parser"
            path="sport-record-parser" />
