@@ -70,4 +70,7 @@
   <project name="sport-record-parser"
            path="sport-record-parser" />
 
+  <project name="sport-add-new-type"
+           path="sport-add-new-type" />
+
 </manifest>
