@@ -73,4 +73,7 @@
   <project name="sport-add-new-type"
            path="sport-add-new-type" />
 
+  <project name="branch-diff"
+           path="branch-diff" />
+
 </manifest>
