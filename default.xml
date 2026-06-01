@@ -76,4 +76,7 @@
   <project name="branch-diff"
            path="branch-diff" />
 
+  <project name="ota_sign_diff_tool"
+           path="ota_sign_diff_tool" />
+
 </manifest>
