@@ -82,4 +82,7 @@
   <project name="build_ui_easy"
            path="build_ui_easy" />
 
+  <project name="picktureFilter"
+           path="picktureFilter" />
+
 </manifest>
