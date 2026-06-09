@@ -79,4 +79,7 @@
   <project name="ota_sign_diff_tool"
            path="ota_sign_diff_tool" />
 
+  <project name="build_ui_easy"
+           path="build_ui_easy" />
+
 </manifest>
