@@ -85,4 +85,7 @@
   <project name="picktureFilter"
            path="picktureFilter" />
 
+  <project name="test"
+           path="test" />
+
 </manifest>
