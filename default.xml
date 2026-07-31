@@ -88,4 +88,7 @@
   <project name="active-nas-build-pipeline"
            path="active-nas-build-pipeline" />
 
+  <project name="active-project-release-manager"
+           path="active-project-release-manager" />
+
 </manifest>
