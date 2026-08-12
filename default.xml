@@ -91,4 +91,7 @@
   <project name="active-project-release-manager"
            path="active-project-release-manager" />
 
+  <project name="firmware-doc-reviewer"
+           path="firmware-doc-reviewer" />
+
 </manifest>
