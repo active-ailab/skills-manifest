@@ -94,4 +94,7 @@
   <project name="firmware-doc-reviewer"
            path="firmware-doc-reviewer" />
 
+  <project name="hyrox-detail-viewer"
+           path="hyrox-detail-viewer" />
+
 </manifest>
