@@ -97,4 +97,7 @@
   <project name="hyrox-detail-viewer"
            path="hyrox-detail-viewer" />
 
+  <project name="active-release-diff-tracker"
+           path="active-release-diff-tracker" />
+
 </manifest>
