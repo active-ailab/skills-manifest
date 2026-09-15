@@ -100,4 +100,7 @@
   <project name="active-release-diff-tracker"
            path="active-release-diff-tracker" />
 
+  <project name="mcu_sdk_import"
+           path="mcu_sdk_import" />
+
 </manifest>
