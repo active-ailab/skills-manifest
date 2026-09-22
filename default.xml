@@ -103,4 +103,7 @@
   <project name="mcu_sdk_import"
            path="mcu_sdk_import" />
 
+  <project name="active-embedded-native-testing"
+           path="active-embedded-native-testing" />
+
 </manifest>
