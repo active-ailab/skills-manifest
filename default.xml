@@ -106,4 +106,7 @@
   <project name="active-embedded-native-testing"
            path="active-embedded-native-testing" />
 
+  <project name="project_bringup"
+           path="project_bringup" />
+
 </manifest>
