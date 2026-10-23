@@ -112,4 +112,7 @@
   <project name="active-sport-debug"
            path="active-sport-debug" />
 
+  <project name="active-fo-porting"
+           path="active-fo-porting" />
+
 </manifest>
