@@ -118,4 +118,7 @@
   <project name="screenless_device_agent"
            path="screenless_device_agent" />
 
+  <project name="active-watch_develop_agent"
+           path="active-watch_develop_agent" />
+
 </manifest>
