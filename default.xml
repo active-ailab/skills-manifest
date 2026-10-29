@@ -121,4 +121,7 @@
   <project name="active-watch_develop_agent"
            path="active-watch_develop_agent" />
 
+  <project name="pl-jira-task-import"
+           path="pl-jira-task-import" />
+
 </manifest>
