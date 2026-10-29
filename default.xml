@@ -124,4 +124,7 @@
   <project name="pl-jira-task-import"
            path="pl-jira-task-import" />
 
+  <project name="power-consumption-analysis"
+           path="power-consumption-analysis" />
+
 </manifest>
