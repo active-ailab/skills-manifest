@@ -127,4 +127,7 @@
   <project name="power-consumption-analysis"
            path="power-consumption-analysis" />
 
+  <project name="zepp-magpie-bridge"
+           path="zepp-magpie-bridge" />
+
 </manifest>
