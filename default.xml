@@ -130,4 +130,7 @@
   <project name="zepp-magpie-bridge"
            path="zepp-magpie-bridge" />
 
+  <project name="jira-auto"
+           path="jira-auto" />
+
 </manifest>
