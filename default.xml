@@ -136,4 +136,7 @@
   <project name="sport_record_create"
            path="sport_record_create" />
 
+  <project name="lcd-driver-development"
+           path="lcd-driver-development" />
+
 </manifest>
