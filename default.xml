@@ -139,4 +139,7 @@
   <project name="lcd-driver-development"
            path="lcd-driver-development" />
 
+  <project name="pace_strategy_tool"
+           path="pace_strategy_tool" />
+
 </manifest>
