@@ -139,4 +139,7 @@
   <project name="pace_strategy_tool"
            path="pace_strategy_tool" />
 
+  <project name="activie-skills-hub"
+           path="activie-skills-hub" />
+
 </manifest>
