@@ -142,4 +142,7 @@
   <project name="activie-skills-hub"
            path="activie-skills-hub" />
 
+  <project name="lark-project-bot"
+           path="lark-project-bot" />
+
 </manifest>
