@@ -145,4 +145,7 @@
   <project name="lark-project-bot"
            path="lark-project-bot" />
 
+  <project name="after-sales-quality-report"
+           path="after-sales-quality-report" />
+
 </manifest>
