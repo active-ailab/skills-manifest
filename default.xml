@@ -151,4 +151,7 @@
   <project name="zeppos-platform-import"
            path="zeppos-platform-import" />
 
+  <project name="npi-production-completeness-check"
+           path="npi-production-completeness-check" />
+
 </manifest>
